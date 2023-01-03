@@ -16,5 +16,5 @@
        (circle 30 "solid" "green"))
 
 (overlay (star 10 "solid" "red")
-         (star 20 "solid" "yellow")
-         (star 30 "solid" "green"))
+       (star 20 "solid" "yellow")
+       (star 30 "solid" "green"))
