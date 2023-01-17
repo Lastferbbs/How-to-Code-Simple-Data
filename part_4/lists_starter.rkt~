@@ -23,12 +23,3 @@ empty
 
 (empty? empty)
 (empty? L1)
-
-(check-expect (add-element empty) (cons 3 empty))
-(check-expect (add-element (cons 5 empty)) (cons 5 (cons 3 empty)))
-
-(define (add-element list)
-  (cond [(empty? list) (cons 3 empty)]
-        [else
-         (cons (first list)
-               (add-element (rest list)))]))
