@@ -4,6 +4,13 @@
 (require 2htdp/universe)
 (require 2htdp/image)
 
+;; !!!
+;; Dołożyć funkcję, która sprawdza czy lokacja rakiety "pokrywa się" z lokacją statku - uwzglednic hit range
+;; na zasadzie - wziąć środek rakiety i statku - jeśli są w odległosci -10 do 10 pixeli, znikają oba
+;; sprawdzic każdą rakietę z kazdym statkiem
+
+
+
 ;; Space Invaders
 
 
@@ -15,8 +22,8 @@
 (define LEFT-EDGE 0)
 (define RIGHT-EDGE 300)
 
-(define INVADER-X-SPEED 1.5)  ;speeds (not velocities) in pixels per tick
-(define INVADER-Y-SPEED 1.5)
+(define INVADER-X-SPEED 1)  ;speeds (not velocities) in pixels per tick
+(define INVADER-Y-SPEED 1.67)
 (define TANK-SPEED 2)
 (define MISSILE-SPEED 10)
 
@@ -115,25 +122,305 @@
 ;; Functions
 
 ;; Game -> Game
-;; Start the world with !!!
+;; Start the world with (main (make-game empty empty (make-tank 100 1)))
 ;; 
 (define (main game)
-  (big-bang game                   ; game 
-    (on-tick   advance-game)     ; game -> game 
-    (to-draw   render)   ; game -> Image
+  (big-bang game                  ; game 
+    (on-tick   advance-game)      ; game -> game 
+    (to-draw   render)            ; game -> Image
     (on-key    control-tank)))    ; game KeyEvent -> game 
 
 
 ;; Game -> Game
 ;; move to the next state - change positions of invaders and missiles
-(check-expect (advance-game (make-game empty empty (make-tank 100 1))) (make-game empty empty (make-tank 102 1)))
-(check-expect (advance-game (make-game empty (list (make-missile 100 110)) (make-tank 100 1))) (make-game empty (list (make-missile 100 100)) (make-tank 102 1)))
+;(check-expect (advance-game (make-game empty empty (make-tank 100 1))) (make-game empty empty (make-tank 102 1)))
+;(check-expect (advance-game (make-game empty (list (make-missile 100 110)) (make-tank 100 1))) (make-game empty (list (make-missile 100 100)) (make-tank 102 1)))
 
 (define (advance-game game)
-  (make-game empty (move-lom (game-missiles game)) (move-tank (game-tank game))))
+  (if (under-screen? (game-invaders game))
+      game
+      (make-game (move-invaders (generate-invaders (destroy-collided (game-missiles game) (game-invaders game)))) (move-lom (destroy-collided-m (game-missiles game) (game-invaders game))) (move-tank (game-tank game)))))
+
+;; ListOfMissiles ListOfInvaders -> ListOfMissiles - !!! poprawic opis
+;; Delete missiles which collided with invaders from list and return list of left missiles
+(check-expect (destroy-collided-m
+               (list (make-missile 100 100) (make-missile 140 140))
+               (list (make-invader 90 110 1) (make-invader 130 130 1)))
+              empty)
+
+(check-expect (destroy-collided-m
+               (list (make-missile 120 100) (make-missile 150 140))
+               (list (make-invader 90 110 1) (make-invader 130 130 1)))
+              (list (make-missile 120 100) (make-missile 150 140)))
 
 
-;; Tank - Tank
+(define (destroy-collided-m lom loi)
+  (cond [(empty? lom) lom]
+        [(empty? loi) lom]    
+        [else (if (empty? (check-impact-m (first loi) lom))
+                  (destroy-collided-m lom (rest loi) )
+                  (destroy-collided-m (cleaned-missiles (check-impact-m (first loi) lom) lom) (rest loi)))])) 
+
+;; Missile ListOfInvaders -> Invader
+;; Check LOI of invader which match coordinates (+- 10) of given missile, returns it
+
+; (define (check-impact missile loi) empty)
+
+(check-expect (check-impact-m (make-invader 100 120 1) (list (make-missile 100 100) (make-missile 100 120) (make-missile 200 120))) (make-missile 100 120))
+(check-expect (check-impact-m (make-invader 100 120 1) empty) empty)
+(check-expect (check-impact-m (make-invader 100 120 1) (list (make-missile 100 100) (make-missile 60 120) (make-missile 200 120))) empty)
+(check-expect (check-impact-m (make-invader 100 120 1) (list (make-missile 100 100) (make-missile 100 110) (make-missile 100 120))) (make-missile 100 110))
+
+;(define (check-impact missile loi)
+;  (cond [(empty? loi) empty]
+;        [else (if (close-enough? missile (first loi))
+;                  (first loi)
+;                  (check-impact missile (rest loi)))]))
+
+(define (check-impact-m invader lom)
+  (cond [(empty? lom) empty]
+        [else (if (close-enough-m? (first lom) invader)
+                  (first lom)
+                  (check-impact-m invader (rest lom)))]))
+
+;(define (close-enough-m? invader missile) 
+;  (if (and (and (<= (- (missile-x missile) (invader-x invader)) 10) (>= (- (missile-x missile) (invader-x invader)) -10))
+;           (and (<= (- (missile-y missile) (invader-y invader)) 10) (>= (- (missile-y missile) (invader-y invader)) -10)))
+;      true
+;      false)) 
+
+
+;; Invader ListOfInvaders -> ListOfInvaders
+;; Delete given invader from list and returns that list
+
+
+; (define (cleaned-invaders invader loi) empty)
+
+(check-expect (cleaned-missiles (make-missile 100 100) (list (make-missile 150 150) (make-missile 100 100) (make-missile 107 107)))
+              (list (make-missile 150 150) (make-missile 107 107)))
+(check-expect (cleaned-missiles (make-missile 100 100) (list (make-missile 105 105))) (list (make-missile 105 105)))
+(check-expect (cleaned-missiles (make-missile 100 100) (list (make-missile 100 100))) empty)
+
+(define (cleaned-missiles missile lom)
+  (cond [(empty? lom) empty]
+        [else (if (equal? missile (first lom))
+                   (rest lom)
+                   (cons (first lom) (cleaned-missiles missile (rest lom))))]))
+
+
+
+
+;; ListOfInvaders ListOfMissiles -> ListOfInvaders - !!! poprawic opis
+;; Delete invaders which collided with missiles, from list and return list of left invaders
+
+;(define (destroy-collided lom loi) empty)
+
+(check-expect (destroy-collided
+               (list (make-missile 100 100) (make-missile 140 140))
+               (list (make-invader 90 110 1) (make-invader 130 130 1)))
+              empty)
+
+(check-expect (destroy-collided
+               (list (make-missile 120 100) (make-missile 150 140))
+               (list (make-invader 90 110 1) (make-invader 130 130 1)))
+              (list (make-invader 90 110 1) (make-invader 130 130 1)))
+
+(check-expect (destroy-collided empty (list (make-invader 90 110 1) (make-invader 130 130 1))) (list (make-invader 90 110 1) (make-invader 130 130 1)))
+
+(define (destroy-collided lom loi)
+  (cond [(empty? loi) loi]
+        [(empty? lom) loi]
+        [else (if (empty? (check-impact (first lom) loi))
+                  (destroy-collided (rest lom) loi)
+                  (destroy-collided (rest lom) (cleaned-invaders (check-impact (first lom) loi) loi)))]))
+
+
+;; Missile ListOfInvaders -> Invader
+;; Check LOI of invader which match coordinates (+- 10) of given missile, returns it
+
+(check-expect (check-impact (make-missile 100 100) (list (make-invader 100 120 1) (make-invader 100 100 1) (make-invader 200 120 1))) (make-invader 100 100 1))
+(check-expect (check-impact (make-missile 100 100) empty) empty)
+(check-expect (check-impact (make-missile 100 100) (list (make-invader 100 120 1) (make-invader 120 100 1) (make-invader 200 120 1))) empty)
+(check-expect (check-impact (make-missile 100 100) (list (make-invader 100 120 1) (make-invader 100 110 1) (make-invader 100 100 1))) (make-invader 100 110 1))
+
+; (define (check-impact missile loi) empty)
+
+(define (check-impact missile loi)
+  (cond [(empty? loi) empty]
+        [else (if (close-enough? missile (first loi))
+                  (first loi)
+                  (check-impact missile (rest loi)))]))
+
+;; Invader ListOfInvaders -> ListOfInvaders
+;; Delete given invader from list and returns that list
+
+(check-expect (cleaned-invaders (make-invader 100 100 1) (list (make-invader 105 105 1) (make-invader 100 100 1) (make-invader 107 107 1)))
+              (list (make-invader 105 105 1) (make-invader 107 107 1)))
+(check-expect (cleaned-invaders (make-invader 100 100 1) (list (make-invader 105 105 1))) (list (make-invader 105 105 1)))
+(check-expect (cleaned-invaders (make-invader 100 100 1) (list (make-invader 100 100 1))) empty)
+
+
+; (define (cleaned-invaders invader loi) empty)
+  
+(define (cleaned-invaders invader loi)
+  (cond [(empty? loi) empty]
+        [else (if (equal? invader (first loi))
+                   (rest loi)
+                   (cons (first loi) (cleaned-invaders invader (rest loi))))]))
+
+
+;; Missile Invader -> Boolean
+;; Compare both and if they are in impact range, return true
+(check-expect (close-enough? (make-missile 100 100) (make-invader 100 110 1)) true)
+(check-expect (close-enough? (make-missile 100 100) (make-invader 100 100 1)) true)
+(check-expect (close-enough? (make-missile 100 100) (make-invader 100 90 1)) true)
+(check-expect (close-enough? (make-missile 100 100) (make-invader 90 110 1)) true)
+(check-expect (close-enough? (make-missile 100 100) (make-invader 90 111 1)) false)
+(check-expect (close-enough? (make-missile 100 100) (make-invader 89 110 1)) false)
+
+               
+
+(define (close-enough? missile invader)  
+  (if (and (and (<= (- (missile-x missile) (invader-x invader)) 10) (>= (- (missile-x missile) (invader-x invader)) -10))
+           (and (<= (- (missile-y missile) (invader-y invader)) 10) (>= (- (missile-y missile) (invader-y invader)) -10)))
+      true
+      false))
+
+;; Missile Invader -> Boolean
+;; Compare both and if they are in impact range, return true
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 100 110 1)) true)
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 100 100 1)) true)
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 100 90 1)) true)
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 90 110 1)) true)
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 90 111 1)) false)
+(check-expect (close-enough-m? (make-missile 100 100) (make-invader 89 110 1)) false)
+
+
+(define (close-enough-m? missile invader)
+  (if (and (and (<= (- (missile-x missile) (invader-x invader)) 10) (>= (- (missile-x missile) (invader-x invader)) -10))
+           (and (<= (- (missile-y missile) (invader-y invader)) 10) (>= (- (missile-y missile) (invader-y invader)) -10)))
+      true
+      false))    
+
+
+;; ListOfInvaders ListOfMissiles -> ListOfMissiles 
+;; simulate missile and invader destroyment
+
+;(check-expect (destroy-missile empty empty) empty)
+;(check-expect (destroy-missile empty (make-missile 100 100)) empty)
+;(check-expect (destroy-missile (list (make-invader 90 90 1)) (list (make-missile 100 100))) empty)
+;(check-expect (destroy-missile (list (make-invader 89 89 1)) (list (make-missile 100 100))) (list (make-missile 100 100)))
+;(check-expect (destroy-missile (list (make-invader 110 110 1)) (list (make-missile 100 100))) empty)
+;(check-expect (destroy-missile (list (make-invader 111 111 1)) (list (make-missile 100 100))) (list (make-missile 100 100)))
+
+(define (destroy-missile loi lom) empty)
+
+
+
+;(define (check-missile missile loi)
+;  (define (under-screen? loi)
+;  (cond [(empty? loi) empty]
+;        [else (if (< 500 (invader-y (first loi)))
+;                  true
+;                  (under-screen? (rest loi)))]))
+
+;; Missile ListOfInvaders -> ListOfInvaders
+;; Delete invader which is in range of missile
+
+(check-expect (destroy-invader empty empty) empty)
+;(check-expect (destroy-invader (make-missile 100 100) (list (make-invader 100 100 1))) empty)
+;(check-expect (destroy-invader (make-missile 100 100) (list (make-invader 150 100 1) (make-invader 100 100 1) (make-invader 200 100 1))) (list (make-invader 150 100 1) (make-invader 200 100 1)))
+
+
+;(define (destroy-invader missile loi) empty)
+
+
+(define (destroy-invader missile loi)
+  (cond [(empty? loi) empty]
+        [else (if (< 500 (invader-y (first loi)))
+                  true
+                  (under-screen? (rest loi)))]))
+
+
+
+  
+
+;; ListOfInvaders -> Boolean
+;; Check if any invader got below the screen, if so, return true
+
+(check-expect (under-screen? empty) false)
+(check-expect (under-screen? (list (make-invader 100 490 1))) false)
+(check-expect (under-screen? (list (make-invader 100 501 1))) true)
+(check-expect (under-screen? (list (make-invader 100 100 1) (make-invader 100 501 1))) true)
+(check-expect (under-screen? (list (make-invader 100 100 1) (make-invader 100 301 1))) false)
+
+;(define (under-screen? loi) true)
+
+(define (under-screen? loi)
+  (cond [(empty? loi) false]
+        [else (if (< 500 (invader-y (first loi)))
+                  true
+                  (under-screen? (rest loi)))]))
+
+
+
+;; ListOfInvaders -> ListOfInvaders
+;; Generate new invaders at random x position on top of the screen
+
+
+;; (check-expect (generate-invaders empty) (list (make-invader (random HEIGHT) -10 -10)))
+;; (check-expect (generate-invaders (list (make-invader 200 -10 -10))) (list (make-invader (random HEIGHT) -10 -10) (make-invader 200 -10 -10)))
+
+; (define (generate-invaders loi) empty)
+
+
+
+(define (generate-invaders loi)
+  (if (> (random 101) 98)
+      (cond [(empty? loi) (list (make-invader (random HEIGHT) -10 -1.5))]
+            [else
+             (append (list (make-invader (random HEIGHT) -10 -1.5)) loi)])
+      loi))
+
+;; ListOfInvaders -> ListOfInvaders
+;; Advance invader position depending on direction it's moving
+
+(check-expect (move-invaders (list (make-invader 100 100 1.5))) (list (make-invader 101.5 101.67 1.5)))
+(check-expect (move-invaders (list (make-invader 100 100 1.5) (make-invader 101.5 101.5 -1.5))) (list (make-invader 101.5 101.67 1.5) (make-invader 100 103.17 -1.5)))
+(check-expect (move-invaders (list (make-invader 299 100 1.5))) (list (make-invader 300 101.67 -1.5)))
+(check-expect (move-invaders (list (make-invader 1 100 -1.5))) (list (make-invader 0 101.67 1.5)))
+(check-expect (move-invaders empty) empty)
+; (define (move-invaders loi) empty)
+
+(define (move-invaders loi)
+  (cond [(empty? loi) empty]
+        [else (cond              
+                [(> (+ (invader-x (first loi)) (invader-dx (first loi))) RIGHT-EDGE)
+                 (cons (make-invader RIGHT-EDGE (+ INVADER-Y-SPEED (invader-y (first loi))) (- (invader-dx (first loi)))) (move-invaders (rest loi)))]
+                [(< (+ (invader-x (first loi)) (invader-dx (first loi))) LEFT-EDGE)
+                 (cons (make-invader LEFT-EDGE (+ INVADER-Y-SPEED (invader-y (first loi))) (- (invader-dx (first loi)))) (move-invaders (rest loi))) ]
+                [else
+                 (cons (make-invader (+ (invader-x (first loi)) (invader-dx (first loi))) (+ INVADER-Y-SPEED (invader-y (first loi))) (invader-dx (first loi))) (move-invaders (rest loi)))])]))
+
+;if (flying-right? (loi first))
+;                  (cond [(> (+ (invader-x (loi first)) INVADER-X-SPEED) RIGHT-EDGE) (append (list (make-invader RIGHT-EDGE make-tank RIGHT-EDGE (tank-dir tank))]
+;                        [else (make-tank (+ (tank-x tank) TANK-SPEED) (tank-dir tank))])
+;                  (cond [(< (- (tank-x tank) TANK-SPEED) LEFT-EDGE) (make-tank LEFT-EDGE (tank-dir tank))]
+;                        [else (make-tank (- (tank-x tank) TANK-SPEED) (tank-dir tank))])))
+
+;; Invader -> Boolean
+;; Check which way invader is moving
+(check-expect (flying-right? (make-invader 100 100 1)) true)
+(check-expect (flying-right? (make-invader 100 100 -1)) false)
+
+
+; (define (flying-right? invader) false) ; stub
+
+(define (flying-right? invader)
+  (cond [(> (invader-dx invader) 0) true]
+        [(< (invader-dx invader) 0) false]))
+
+;; Tank -> Tank
 ;; Advance tank position depending on direction it's moving
 
 (check-expect (move-tank (make-tank 100 1)) (make-tank (+ 100 TANK-SPEED) 1))
@@ -195,34 +482,47 @@
 
 ;(define (render game) empty-image) ; stub
 (define (render game)
-  (render-tank-missiles (game-tank game) (game-missiles game)))
+  (render-tank-missiles (game-tank game) (game-missiles game) (game-invaders game)))
 
 
-;; Tank ListOfMissiles -> Image
-;; render tank and missiles
-(check-expect (render-tank-missiles (make-tank 100 1) empty) (place-image TANK 100 (- HEIGHT TANK-HEIGHT/2) BACKGROUND))
-(check-expect (render-tank-missiles (make-tank 100 1) (list (make-missile 200 200) (make-missile 150 150))) (place-image TANK 100 (- HEIGHT TANK-HEIGHT/2) (place-image MISSILE 200 200 (place-image MISSILE 150 150 BACKGROUND))))
+;; Tank ListOfMissiles ListOfMissiles -> Image
+;; render tank missiles and invaders
+(check-expect (render-tank-missiles (make-tank 100 1) empty empty) (place-image TANK 100 (- HEIGHT TANK-HEIGHT/2) BACKGROUND))
+(check-expect (render-tank-missiles (make-tank 100 1) (list (make-missile 200 200) (make-missile 150 150)) empty) (place-image TANK 100 (- HEIGHT TANK-HEIGHT/2) (place-image MISSILE 200 200 (place-image MISSILE 150 150 BACKGROUND))))
 
 
 ;(define (render-tank tank) empty-image) ;stub
 
-(define (render-tank-missiles tank lom)
-  (place-image TANK (tank-x tank) (- HEIGHT TANK-HEIGHT/2) (render-missiles lom)))
+(define (render-tank-missiles tank lom loi)
+  (place-image TANK (tank-x tank) (- HEIGHT TANK-HEIGHT/2) (render-missiles lom loi)))
 
 ;; ListOfMissile -> Image
-;; render missiles on screen
+;; render missiles and invaders on screen
 
-(check-expect (render-missiles empty) BACKGROUND)
-(check-expect (render-missiles (list (make-missile 100 100))) (place-image MISSILE 100 100 BACKGROUND))
-(check-expect (render-missiles (list (make-missile 150 150) (make-missile 100 100))) (place-image MISSILE 150 150 (place-image MISSILE 100 100 BACKGROUND)))
+(check-expect (render-missiles empty empty) BACKGROUND)
+(check-expect (render-missiles (list (make-missile 100 100)) empty) (place-image MISSILE 100 100 BACKGROUND))
+(check-expect (render-missiles (list (make-missile 150 150) (make-missile 100 100)) empty) (place-image MISSILE 150 150 (place-image MISSILE 100 100 BACKGROUND)))
 
 ;(define (render-missiles lom) BACKGROUND) ; stub
 
-(define (render-missiles lom)
-  (cond [(empty? lom) BACKGROUND]
+(define (render-missiles lom loi)
+  (cond [(empty? lom) (render-invaders loi)]
         [else
          (place-image MISSILE (missile-x (first lom)) (missile-y (first lom))                             
-                      (render-missiles (rest lom)))]))
+                      (render-missiles (rest lom) loi))]))
+
+;; ListOfInvaders -> Image
+;; render invaders
+
+(check-expect (render-invaders empty) BACKGROUND)
+(check-expect (render-invaders (list (make-invader 100 100 1.5))) (place-image INVADER 100 100 BACKGROUND))
+(check-expect (render-invaders (list (make-invader 100 100 1.5) (make-invader 200 200 1.5))) (place-image INVADER 100 100 (place-image INVADER 200 200 BACKGROUND)))
+
+(define (render-invaders loi)
+  (cond [(empty? loi) BACKGROUND]
+        [else
+         (place-image INVADER (invader-x (first loi)) (invader-y (first loi))                             
+                      (render-invaders (rest loi)))]))
 
 
 ;;++++++++++++++++++++++++++++++++++++++
