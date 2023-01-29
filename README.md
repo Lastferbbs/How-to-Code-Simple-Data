@@ -17,3 +17,5 @@ Full course material can be found here: https://learning.edx.org/course/course-v
 Presentation of final project (simple space invader remix, without extra features, as I'm not a fan of racket :))
 
 ![](https://github.com/Lastferbbs/How-to-Code-Simple-Data/blob/main/final.gif)
+
+It is a gif and may need some time to load - also u can check it here - https://github.com/Lastferbbs/How-to-Code-Simple-Data/blob/main/final.gif
